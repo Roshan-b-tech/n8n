@@ -135,7 +135,7 @@
         {
             "parameters": {
                 "respondWith": "json",
-                "responseBody": "={\n  \"success\": true,\n  \"message\": \"AI response generated and saved successfully\",\n  \"data\": {\n    \"ai_response\": $('Extract AI Response').first().json.content\n  }\n}",
+                "responseBody": "={\n  \"success\": true,\n  \"message\": \"AI response generated and saved successfully\"\n}",
                 "options": {}
             },
             "id": "response",
