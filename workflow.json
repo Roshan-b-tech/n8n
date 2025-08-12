@@ -1,0 +1,217 @@
+{
+    "name": "AI Chatbot Workflow",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "send-message",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "webhook",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                240,
+                300
+            ],
+            "webhookId": "send-message"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Validate the request and extract data\nconst { chat_id, content } = $input.first().json;\nconst userHeaders = $input.first().headers;\n\n// Extract user ID from JWT token\nconst authHeader = userHeaders.authorization;\nif (!authHeader || !authHeader.startsWith('Bearer ')) {\n  throw new Error('Missing or invalid authorization header');\n}\n\n// For now, we'll use the chat_id and content directly\n// In production, you'd decode the JWT to get the user ID\nreturn {\n  chat_id,\n  content,\n  user_id: userHeaders['x-hasura-user-id'] || 'unknown'\n};"
+            },
+            "id": "validate",
+            "name": "Validate Request",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://openrouter.ai/api/v1/chat/completions",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Authorization",
+                            "value": "Bearer {{$env.OPENROUTER_API_KEY}}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "model",
+                            "value": "mistralai/mistral-7b-instruct"
+                        },
+                        {
+                            "name": "messages",
+                            "value": "=[{\"role\": \"user\", \"content\": \"{{$json.content}}\"}]"
+                        },
+                        {
+                            "name": "max_tokens",
+                            "value": "500"
+                        },
+                        {
+                            "name": "temperature",
+                            "value": "0.7"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "openrouter",
+            "name": "Call OpenRouter API",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extract the AI response\nconst response = $input.first().json;\nconst aiMessage = response.choices[0].message.content;\n\nreturn {\n  chat_id: $('Validate Request').first().json.chat_id,\n  content: aiMessage,\n  is_bot: true\n};"
+            },
+            "id": "extract",
+            "name": "Extract AI Response",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                900,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "{{$env.HASURA_GRAPHQL_URL}}",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "x-hasura-admin-secret",
+                            "value": "{{$env.HASURA_ADMIN_SECRET}}"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "query",
+                            "value": "mutation InsertMessage($chat_id: uuid!, $content: String!, $is_bot: Boolean!) {\n  insert_messages_one(object: {\n    chat_id: $chat_id,\n    content: $content,\n    is_bot: $is_bot\n  }) {\n    id\n    content\n    is_bot\n    created_at\n  }\n}"
+                        },
+                        {
+                            "name": "variables",
+                            "value": "={\n  \"chat_id\": \"{{$json.chat_id}}\",\n  \"content\": \"{{$json.content}}\",\n  \"is_bot\": {{$json.is_bot}}\n}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "id": "save",
+            "name": "Save AI Response",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1120,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={\n  \"success\": true,\n  \"message\": \"AI response generated and saved successfully\",\n  \"data\": {\n    \"ai_response\": $('Extract AI Response').first().json.content\n  }\n}",
+                "options": {}
+            },
+            "id": "response",
+            "name": "Return Response",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1340,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Validate Request",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Validate Request": {
+            "main": [
+                [
+                    {
+                        "node": "Call OpenRouter API",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call OpenRouter API": {
+            "main": [
+                [
+                    {
+                        "node": "Extract AI Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extract AI Response": {
+            "main": [
+                [
+                    {
+                        "node": "Save AI Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Save AI Response": {
+            "main": [
+                [
+                    {
+                        "node": "Return Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 0,
+    "updatedAt": "2025-08-12T07:30:00.000Z",
+    "versionId": "1"
+}

@@ -1,0 +1,27 @@
+{
+    "name": "n8n-ai-chatbot",
+    "version": "1.0.0",
+    "description": "n8n workflow for AI chatbot webhook",
+    "main": "index.js",
+    "scripts": {
+        "start": "n8n start",
+        "build": "echo 'No build step needed for n8n'",
+        "dev": "n8n start"
+    },
+    "dependencies": {
+        "@nhost/nhost-js": "^2.2.7",
+        "n8n": "^1.106.3"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "keywords": [
+        "n8n",
+        "workflow",
+        "ai",
+        "chatbot",
+        "webhook"
+    ],
+    "author": "Your Name",
+    "license": "MIT"
+}
